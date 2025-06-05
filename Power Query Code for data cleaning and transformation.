@@ -1,0 +1,167 @@
+1 Credit Table Code - 
+----------------------------
+
+let
+    Source = Folder.Files("C:\A1 labmantix projects\2 amazon stream\amazon_data"),
+    #"Removed Other Columns" = Table.SelectColumns(Source,{"Content", "Name"}),
+    Content = #"Removed Other Columns"{0}[Content],
+    #"Imported CSV" = Csv.Document(Content,[Delimiter=",", Columns=5, Encoding=65001, QuoteStyle=QuoteStyle.None]),
+    promoted_headers = Table.PromoteHeaders(#"Imported CSV", [PromoteAllScalars=true]),
+    remove_duplicates_all_col = Table.Distinct(promoted_headers),
+    list_of_headers = Table.ToColumns(
+Table.DemoteHeaders(
+ Table.TransformColumns(Table.FirstN(remove_duplicates_all_col,1),{}, Value.Type))),
+    changed_type_dynamic = Table.TransformColumnTypes(remove_duplicates_all_col,list_of_headers),
+    #"add_col_characters(fill_directors)" = Table.AddColumn(changed_type_dynamic, "characters", 
+   each 
+    if [role] = "DIRECTOR" then "DIRECTOR" else [character] , Text.Type
+    ),
+    #"replace_null_(side_char)_in_chars_col" = Table.ReplaceValue(#"add_col_characters(fill_directors)","","Side characters",Replacer.ReplaceValue,{"characters"}),
+    #"removed_col_(character)" = Table.RemoveColumns(#"replace_null_(side_char)_in_chars_col",{"character"}),
+    reordered_cols = Table.ReorderColumns(#"removed_col_(character)",{"id", "person_id", "name", "role", "characters"})
+in
+    reordered_cols
+
+
+2 Title Table Code - 
+------------------------
+
+let
+    Source = Folder.Files("C:\A1 labmantix projects\2 amazon stream\amazon_data"),
+    #"Removed Other Columns" = Table.SelectColumns(Source,{"Content", "Name"}),
+    Content = #"Removed Other Columns"{1}[Content],
+    #"Imported CSV" = Csv.Document(Content,[Delimiter=",", Columns=15, Encoding=65001, QuoteStyle=QuoteStyle.None]),
+    promoted_headers = Table.PromoteHeaders(#"Imported CSV", [PromoteAllScalars=true]),
+    remove_blanks_id = Table.SelectRows(promoted_headers, each ([id] <> "")),
+    remove_duplicates_all_col = Table.Distinct(remove_blanks_id),
+    sort_row_id_col = Table.Sort(remove_duplicates_all_col,{{"id", Order.Ascending}}),
+    filter_type_col_imp = Table.SelectRows(sort_row_id_col, each ([type] = "MOVIE" or [type] = "SHOW")),
+    Custom1 = filter_type_col_imp,
+    filter_row_released_year_understanding = Table.SelectRows(Custom1, each ([release_year] = "")),
+    remove_nulls_of_release_year = Table.SelectRows(filter_type_col_imp, each ([release_year] <> "")),
+    change_dt_all_num_cols = Table.TransformColumnTypes(remove_nulls_of_release_year,{{"release_year", Int64.Type}, {"runtime", Int64.Type}, {"seasons", Int64.Type}, {"imdb_score", Int64.Type}, {"imdb_votes", Int64.Type}, {"tmdb_popularity", Int64.Type}, {"tmdb_score", Int64.Type}}),
+    remove_unwanted_chars_in_genres_n_prod_countries = Table.TransformColumns(
+change_dt_all_num_cols, 
+{
+{"genres", each Text.Select(_, {"A".."Z","a".."z",","} ) } ,
+{"production_countries", each Text.Select(_, {"A".."Z","a".."z",","} ) }
+}
+),
+    change_dt_genre_and_prod_countries = Table.TransformColumnTypes(remove_unwanted_chars_in_genres_n_prod_countries,{{"genres", type text},{"production_countries", type text}}),
+    replace_blank_genres = Table.ReplaceValue(change_dt_genre_and_prod_countries,"","not_available",Replacer.ReplaceValue,{"genres"}),
+    replaced_blank_prod_countries = Table.ReplaceValue(replace_blank_genres,"","not_available",Replacer.ReplaceValue,{"production_countries"}),
+    sort_run_time_col = Table.Sort(replaced_blank_prod_countries,{{"runtime", Order.Ascending}}),
+    replace_null_imdb_score_median = Table.ReplaceValue(sort_run_time_col,null, List.Median(sort_run_time_col[imdb_score]) ,Replacer.ReplaceValue,{"imdb_score"}),
+    replace_null_tmdb_score_median = Table.ReplaceValue(replace_null_imdb_score_median,null, List.Median(replace_null_imdb_score_median[tmdb_score]) ,Replacer.ReplaceValue,{"tmdb_score"}),
+    replace_null_imdb_votes_median = Table.ReplaceValue(replace_null_tmdb_score_median,null, List.Median(replace_null_tmdb_score_median[imdb_votes]) ,Replacer.ReplaceValue,{"imdb_votes"}),
+    replace_null_sesons_by1 = Table.ReplaceValue(replace_null_imdb_votes_median,null,1,Replacer.ReplaceValue,{"seasons"}),
+    add_col_updated_time_duration = Table.AddColumn(replace_null_sesons_by1, "run_time_duration", 
+each 
+if [type] = "MOVIE" and [runtime] <=70 then 70 else
+if[type] = "SHOW" and [runtime]<=28 then 28 
+else [runtime],
+Number.Type
+),
+    removed_col_old_runtime = Table.RemoveColumns(add_col_updated_time_duration,{"runtime"})
+in
+    removed_col_old_runtime
+
+
+3 Genre Table Code - 
+----------------------------
+
+let
+    Source = Folder.Files("C:\A1 labmantix projects\2 amazon stream\amazon_data"),
+    #"Removed Other Columns" = Table.SelectColumns(Source,{"Content", "Name"}),
+    Content = #"Removed Other Columns"{1}[Content],
+    #"Imported CSV" = Csv.Document(Content,[Delimiter=",", Columns=15, Encoding=65001, QuoteStyle=QuoteStyle.None]),
+    promoted_headers = Table.PromoteHeaders(#"Imported CSV", [PromoteAllScalars=true]),
+    remove_blanks_id = Table.SelectRows(promoted_headers, each ([id] <> "")),
+    remove_duplicates_all_col = Table.Distinct(remove_blanks_id),
+    sort_row_id_col = Table.Sort(remove_duplicates_all_col,{{"id", Order.Ascending}}),
+    filter_type_col_imp = Table.SelectRows(sort_row_id_col, each ([type] = "MOVIE" or [type] = "SHOW")),
+    Custom1 = filter_type_col_imp,
+    filter_row_released_year_understanding = Table.SelectRows(Custom1, each ([release_year] = "")),
+    remove_nulls_of_release_year = Table.SelectRows(filter_type_col_imp, each ([release_year] <> "")),
+    change_dt_all_num_cols = Table.TransformColumnTypes(remove_nulls_of_release_year,{{"release_year", Int64.Type}, {"runtime", Int64.Type}, {"seasons", Int64.Type}, {"imdb_score", Int64.Type}, {"imdb_votes", Int64.Type}, {"tmdb_popularity", Int64.Type}, {"tmdb_score", Int64.Type}}),
+    remove_unwanted_chars_in_genres_n_prod_countries = Table.TransformColumns(
+change_dt_all_num_cols, 
+{
+{"genres", each Text.Select(_, {"A".."Z","a".."z",","} ) } ,
+{"production_countries", each Text.Select(_, {"A".."Z","a".."z",","} ) }
+}
+),
+    change_dt_genre_and_prod_countries = Table.TransformColumnTypes(remove_unwanted_chars_in_genres_n_prod_countries,{{"genres", type text},{"production_countries", type text}}),
+    replace_blank_genres = Table.ReplaceValue(change_dt_genre_and_prod_countries,"","not_available",Replacer.ReplaceValue,{"genres"}),
+    keep_id_n_genre = Table.SelectColumns(replace_blank_genres,{"id", "genres"}),
+    #"Split Column by Delimiter" = Table.ExpandListColumn(Table.TransformColumns(keep_id_n_genre, {{"genres", Splitter.SplitTextByDelimiter(",", QuoteStyle.Csv), let itemType = (type nullable text) meta [Serialized.Text = true] in type {itemType}}}), "genres"),
+    groupby_for_right_distribution_of_imdb_score = Table.Group(#"Split Column by Delimiter", {"id"}, {{"All_row", each _, type table [id=nullable text, genres=nullable text]}, {"row_count", each Table.RowCount(_), Int64.Type}}),
+    Custom2 = groupby_for_right_distribution_of_imdb_score [[All_row],[row_count]],
+    #"Expanded All_row" = Table.ExpandTableColumn(Custom2, "All_row", {"id", "genres"}, {"id", "genres"})
+in
+    #"Expanded All_row"
+
+
+4 Production_countries code - 
+--------------------------------------
+
+let
+    Source = Folder.Files("C:\A1 labmantix projects\2 amazon stream\amazon_data"),
+    #"Removed Other Columns" = Table.SelectColumns(Source,{"Content", "Name"}),
+    Content = #"Removed Other Columns"{1}[Content],
+    #"Imported CSV" = Csv.Document(Content,[Delimiter=",", Columns=15, Encoding=65001, QuoteStyle=QuoteStyle.None]),
+    promoted_headers = Table.PromoteHeaders(#"Imported CSV", [PromoteAllScalars=true]),
+    remove_blanks_id = Table.SelectRows(promoted_headers, each ([id] <> "")),
+    remove_duplicates_all_col = Table.Distinct(remove_blanks_id),
+    sort_row_id_col = Table.Sort(remove_duplicates_all_col,{{"id", Order.Ascending}}),
+    filter_type_col_imp = Table.SelectRows(sort_row_id_col, each ([type] = "MOVIE" or [type] = "SHOW")),
+    Custom1 = filter_type_col_imp,
+    filter_row_released_year_understanding = Table.SelectRows(Custom1, each ([release_year] = "")),
+    remove_nulls_of_release_year = Table.SelectRows(filter_type_col_imp, each ([release_year] <> "")),
+    change_dt_all_num_cols = Table.TransformColumnTypes(remove_nulls_of_release_year,{{"release_year", Int64.Type}, {"runtime", Int64.Type}, {"seasons", Int64.Type}, {"imdb_score", Int64.Type}, {"imdb_votes", Int64.Type}, {"tmdb_popularity", Int64.Type}, {"tmdb_score", Int64.Type}}),
+    remove_unwanted_chars_in_genres_n_prod_countries = Table.TransformColumns(
+change_dt_all_num_cols, 
+{
+{"genres", each Text.Select(_, {"A".."Z","a".."z",","} ) } ,
+{"production_countries", each Text.Select(_, {"A".."Z","a".."z",","} ) }
+}
+),
+    change_dt_genre_and_prod_countries = Table.TransformColumnTypes(remove_unwanted_chars_in_genres_n_prod_countries,{{"genres", type text},{"production_countries", type text}}),
+    replaced_blank_prod_countries = Table.ReplaceValue(change_dt_genre_and_prod_countries,"","not_available",Replacer.ReplaceValue,{"production_countries"}),
+    keep_req_cols_id_n_prod_countries = Table.SelectColumns(replaced_blank_prod_countries,{"id", "production_countries"}),
+    #"Split Column by Delimiter" = Table.ExpandListColumn(Table.TransformColumns(keep_req_cols_id_n_prod_countries, {{"production_countries", Splitter.SplitTextByDelimiter(",", QuoteStyle.Csv), let itemType = (type nullable text) meta [Serialized.Text = true] in type {itemType}}}), "production_countries"),
+    #"Grouped Rows" = Table.Group(#"Split Column by Delimiter", {"id"}, 
+{
+{"All_rows", each _, type table [id=nullable text, production_countries=nullable text]}, 
+{"Count", each Table.RowCount(_), Int64.Type}
+})
+[[All_rows],[Count]],
+    #"Expanded All_rows" = Table.ExpandTableColumn(#"Grouped Rows", "All_rows", {"id", "production_countries"}, {"id", "production_countries"}),
+    #"Sorted Rows" = Table.Sort(#"Expanded All_rows",{{"id", Order.Ascending}})
+in
+    #"Sorted Rows"
+
+
+5 Released_years Table Code - 
+-----------------------------------
+
+let
+    Source = Folder.Files("C:\A1 labmantix projects\2 amazon stream\amazon_data"),
+    #"Removed Other Columns" = Table.SelectColumns(Source,{"Content", "Name"}),
+    Content = #"Removed Other Columns"{1}[Content],
+    #"Imported CSV" = Csv.Document(Content,[Delimiter=",", Columns=15, Encoding=65001, QuoteStyle=QuoteStyle.None]),
+    promoted_headers = Table.PromoteHeaders(#"Imported CSV", [PromoteAllScalars=true]),
+    remove_blanks_id = Table.SelectRows(promoted_headers, each ([id] <> "")),
+    remove_duplicates_all_col = Table.Distinct(remove_blanks_id),
+    sort_row_id_col = Table.Sort(remove_duplicates_all_col,{{"id", Order.Ascending}}),
+    filter_type_col_imp = Table.SelectRows(sort_row_id_col, each ([type] = "MOVIE" or [type] = "SHOW")),
+    Custom1 = filter_type_col_imp,
+    filter_row_released_year_understanding = Table.SelectRows(Custom1, each ([release_year] = "")),
+    remove_nulls_of_release_year = Table.SelectRows(filter_type_col_imp, each ([release_year] <> "")),
+    change_dt_all_num_cols = Table.TransformColumnTypes(remove_nulls_of_release_year,{{"release_year", Int64.Type}, {"runtime", Int64.Type}, {"seasons", Int64.Type}, {"imdb_score", Int64.Type}, {"imdb_votes", Int64.Type}, {"tmdb_popularity", Int64.Type}, {"tmdb_score", Int64.Type}}),
+    #"Removed Other Columns1" = Table.SelectColumns(change_dt_all_num_cols,{"release_year"}),
+    #"Removed Duplicates" = Table.Distinct(#"Removed Other Columns1"),
+    #"Sorted Rows" = Table.Sort(#"Removed Duplicates",{{"release_year", Order.Descending}}),
+    #"Added Index" = Table.AddIndexColumn(#"Sorted Rows", "year_refrence_index", 0, 1, Int64.Type)
+in
+    #"Added Index"
