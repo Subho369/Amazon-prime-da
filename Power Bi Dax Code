@@ -1,0 +1,41 @@
+
+KPI Measures -
+----------------
+
+1. Avg_production_YOY = AVERAGEX(released_years,[yoy_production])
+2. Current year = MAX(released_years[release_year])
+3. Movie_counts = CALCULATE([Total_contents],titles[type] = "Movie")
+4. prod_countries_count = SUMX(VALUES(production_countries[production_countries]),1)
+5. Show_counts = CALCULATE([Total_contents],titles[type] = "Show")
+6. start_year = MIN(released_years[release_year])
+7. Total_contents = COUNT(titles[id])
+8. Total_genres = COUNTROWS(VALUES(genre[genres]))
+
+
+Operarion Measures - 
+----------------------
+
+1. avg_imdb_score_genre =  AVERAGEX(genre,RELATED(titles[imdb_score]))
+2. genre_imdb_votes = SUMX(genre, RELATED(titles[imdb_votes])/genre[row_count])
+3. imdb_score = SUMX(genre,RELATED(titles[imdb_score])/genre[row_count])
+4. prod_countries_imdb_votes = SUMX(production_countries, RELATED(titles[imdb_votes])/production_countries[Count])
+
+5. py_production = 
+CALCULATE([Total_contents],
+WINDOW(-1,REL,-1,REL,
+ALLSELECTED(released_years),
+ORDERBY(released_years[release_year],ASC)
+)
+)
+
+6. title_counts_by_genre = CALCULATE([Total_contents],CROSSFILTER(titles[id],genre[id],Both))
+7. title_counts_by_prod_countries = CALCULATE([Total_contents],CROSSFILTER(titles[id],production_countries[id],Both))
+8. top_genre_by_imdb_score = RANKX(ALLSELECTED(titles),[imdb_score],,DESC,Dense)
+9. top_genre_by_imdb_votes = RANKX(ALLSELECTED(titles),[genre_imdb_votes],,DESC,Dense)
+10. total_imdb_votes = SUM(titles[imdb_votes])
+11. total_run_time = SUMX(titles, titles[seasons]*titles[run_time_duration])
+12. yoy_production = DIVIDE([Total_contents]-[py_production],[py_production])
+
+
+
+
